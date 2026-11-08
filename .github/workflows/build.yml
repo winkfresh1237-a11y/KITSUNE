@@ -1,5 +1,4 @@
 name: Build APK
-
 on:
   push:
     branches: [ main ]
@@ -18,11 +17,30 @@ jobs:
           flutter-version: '3.24.3'
           channel: 'stable'
           cache: true
-      - run: flutter pub get
-      - run: flutter build apk --release
+
+      - name: Unzip project
+        run: |
+          unzip -o "KITSUNE V2.zip" -d extracted
+          ls -R extracted | head -n 100
+          APP_DIR=$(dirname $(find extracted -name "pubspec.yaml" | head -n 1))
+          echo "APP_DIR=$APP_DIR" >> $GITHUB_ENV
+          echo "Found app in $APP_DIR"
+
+      - name: Build APK
+        run: |
+          cd "$APP_DIR"
+          flutter pub get
+          flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: KITSUNE-APK
+          path: ${{ env.APP_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+
       - name: Buat Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: KITSUNE V2 - Build ${{ github.run_number }}
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: ${{ env.APP_DIR }}/build/app/outputs/flutter-apk/app-release.apk
