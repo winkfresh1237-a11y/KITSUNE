@@ -1,3 +1,4 @@
+
 name: Build APK
 on:
   workflow_dispatch:
@@ -15,11 +16,12 @@ jobs:
       - name: Unzip dan Build
         run: |
           unzip -o "KITSUNE V2.zip" -d app
-          cd app
-          # kalo di dalem zip masih ada folder lagi, masuk ke dalemnya
-          if [ -f "pubspec.yaml" ]; then echo "ketemu di sini"; else cd $(ls -d */ | head -n 1); fi
-          pwd
-          ls
+          # kalo di dalemnya masih ada zip lagi, unzip juga
+          find app -name "*.zip" -exec sh -c 'unzip -o "$1" -d "$(dirname "$1")"' _ {} \;
+          APP_DIR=$(find app -name "pubspec.yaml" -exec dirname {} \; | head -n 1)
+          echo "Ketemu di: $APP_DIR"
+          ls "$APP_DIR"
+          cd "$APP_DIR"
           flutter pub get
           flutter build apk --release
       - name: Upload APK
