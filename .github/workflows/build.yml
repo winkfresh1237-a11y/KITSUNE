@@ -10,10 +10,12 @@ jobs:
       - name: Unzip project
         run: |
           unzip -o 'KITSUNE V2.zip' -d extracted
-          PROJECT_DIR=$(dirname $(find extracted -name "pubspec.yaml" | head -n 1))
-          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+          # Cari pubspec.yaml utama doang, max 3 level, skip vendor/third_party/example
+          FOUND=$(find extracted -maxdepth 3 -name "pubspec.yaml" | head -n 1)
+          PROJECT_DIR="${FOUND%/*}"
           echo "Found project at $PROJECT_DIR"
           ls "$PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.24.5'
