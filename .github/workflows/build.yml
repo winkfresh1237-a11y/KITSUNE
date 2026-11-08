@@ -1,22 +1,29 @@
 name: Build APK
 on:
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: |
-          unzip -o "KITSUNE V2.zip" -d extracted
-          cp -r extracted/*/ . 2>/dev/null || cp -r extracted/* .
-          ls -la
+      - name: Unzip project
+        run: |
+          unzip -o 'KITSUNE V2.zip' -d extracted
+          PROJECT_DIR=$(dirname $(find extracted -name "pubspec.yaml" | head -n 1))
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+          echo "Found project at $PROJECT_DIR"
+          ls "$PROJECT_DIR"
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.24.5'
           channel: 'stable'
-      - run: flutter pub get
-      - run: flutter build apk --release
+      - name: Build APK
+        run: |
+          cd "$PROJECT_DIR"
+          flutter pub get
+          flutter build apk --release
       - uses: actions/upload-artifact@v4
         with:
           name: KITSUNE-release
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
