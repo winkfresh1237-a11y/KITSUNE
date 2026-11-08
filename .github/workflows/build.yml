@@ -13,7 +13,6 @@ jobs:
           FOUND=$(find extracted -maxdepth 3 -name "pubspec.yaml" | head -n 1)
           PROJECT_DIR="${FOUND%/*}"
           echo "Found project at $PROJECT_DIR"
-          ls "$PROJECT_DIR"
           echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
       - uses: subosito/flutter-action@v2
         with:
@@ -23,20 +22,43 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-      - name: Fix Gradle Download - Pakai Mirror + Retry
+      - name: Fix Gradle Download + Maven Mirror
         run: |
           cd "$PROJECT_DIR"
-          # Ganti URL Gradle ke mirror Tencent yang lebih stabil
           WRAPPER_FILE=$(find . -name "gradle-wrapper.properties" | head -n 1)
-          echo "Wrapper: $WRAPPER_FILE"
-          cat "$WRAPPER_FILE"
           sed -i 's|https://services.gradle.org/distributions/|https://mirrors.cloud.tencent.com/gradle/|' "$WRAPPER_FILE"
-          cat "$WRAPPER_FILE"
-      - name: Build APK
+          # Paksa semua Maven pake mirror Aliyun, biar gak kena 504 lagi
+          mkdir -p ~/.gradle
+          cat > ~/.gradle/init.gradle <<'EOF'
+          allprojects {
+            buildscript {
+              repositories {
+                maven { url 'https://maven.aliyun.com/repository/public' }
+                maven { url 'https://maven.aliyun.com/repository/google' }
+                maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+                mavenCentral()
+                google()
+                gradlePluginPortal()
+              }
+            }
+            repositories {
+              maven { url 'https://maven.aliyun.com/repository/public' }
+              maven { url 'https://maven.aliyun.com/repository/google' }
+              mavenCentral()
+              google()
+            }
+          }
+          EOF
+          cat ~/.gradle/init.gradle
+      - name: Build APK with Retry
         run: |
           cd "$PROJECT_DIR"
           flutter pub get
-          flutter build apk --release
+          # Coba 3x, kalo kena 504 dia retry sendiri
+          for i in 1 2 3; do
+            echo "=== ATTEMPT $i ==="
+            flutter build apk --release && break || sleep 30
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: KITSUNE-release
