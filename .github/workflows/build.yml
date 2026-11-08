@@ -10,7 +10,6 @@ jobs:
       - name: Unzip project
         run: |
           unzip -o 'KITSUNE V2.zip' -d extracted
-          # Cari pubspec.yaml utama doang, max 3 level, skip vendor/third_party/example
           FOUND=$(find extracted -maxdepth 3 -name "pubspec.yaml" | head -n 1)
           PROJECT_DIR="${FOUND%/*}"
           echo "Found project at $PROJECT_DIR"
@@ -20,6 +19,19 @@ jobs:
         with:
           flutter-version: '3.47.9'
           channel: 'stable'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Fix Gradle Download - Pakai Mirror + Retry
+        run: |
+          cd "$PROJECT_DIR"
+          # Ganti URL Gradle ke mirror Tencent yang lebih stabil
+          WRAPPER_FILE=$(find . -name "gradle-wrapper.properties" | head -n 1)
+          echo "Wrapper: $WRAPPER_FILE"
+          cat "$WRAPPER_FILE"
+          sed -i 's|https://services.gradle.org/distributions/|https://mirrors.cloud.tencent.com/gradle/|' "$WRAPPER_FILE"
+          cat "$WRAPPER_FILE"
       - name: Build APK
         run: |
           cd "$PROJECT_DIR"
