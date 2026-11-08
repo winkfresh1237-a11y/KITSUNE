@@ -1,46 +1,29 @@
 name: Build APK
 on:
+  workflow_dispatch:
   push:
     branches: [ main ]
-  workflow_dispatch:
-
-permissions:
-  contents: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.3'
           channel: 'stable'
-          cache: true
-
-      - name: Unzip project
+      - name: Unzip dan Build
         run: |
-          unzip -o "KITSUNE V2.zip" -d extracted
-          ls -R extracted | head -n 100
-          APP_DIR=$(dirname $(find extracted -name "pubspec.yaml" | head -n 1))
-          echo "APP_DIR=$APP_DIR" >> $GITHUB_ENV
-          echo "Found app in $APP_DIR"
-
-      - name: Build APK
-        run: |
-          cd "$APP_DIR"
+          unzip -o "KITSUNE V2.zip" -d app
+          cd app
+          # kalo di dalem zip masih ada folder lagi, masuk ke dalemnya
+          if [ -f "pubspec.yaml" ]; then echo "ketemu di sini"; else cd $(ls -d */ | head -n 1); fi
+          pwd
+          ls
           flutter pub get
           flutter build apk --release
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: KITSUNE-APK
-          path: ${{ env.APP_DIR }}/build/app/outputs/flutter-apk/app-release.apk
-
-      - name: Buat Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: KITSUNE V2 - Build ${{ github.run_number }}
-          files: ${{ env.APP_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          path: "**/app-release.apk"
