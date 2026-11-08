@@ -1,31 +1,61 @@
-
 name: Build APK
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-      - name: Unzip dan Build
+      - name: Unzip project
         run: |
-          unzip -o "KITSUNE V2.zip" -d app
-          # kalo di dalemnya masih ada zip lagi, unzip juga
-          find app -name "*.zip" -exec sh -c 'unzip -o "$1" -d "$(dirname "$1")"' _ {} \;
-          APP_DIR=$(find app -name "pubspec.yaml" -exec dirname {} \; | head -n 1)
-          echo "Ketemu di: $APP_DIR"
-          ls "$APP_DIR"
-          cd "$APP_DIR"
-          flutter pub get
-          flutter build apk --release
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+          unzip -o 'KITSUNE V2.zip' -d extracted
+          FOUND=$(find extracted -maxdepth 3 -name "pubspec.yaml" | head -n 1)
+          PROJECT_DIR="${FOUND%/*}"
+          echo "Found project at $PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+      - uses: subosito/flutter-action@v2
         with:
-          name: KITSUNE-APK
-          path: "**/app-release.apk"
+          flutter-version: '3.47.9'
+          channel: 'stable'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Fix Gradle Download + Maven Mirror
+        run: |
+          cd "$PROJECT_DIR"
+          WRAPPER_FILE=$(find . -name "gradle-wrapper.properties" | head -n 1)
+          sed -i 's|https://services.gradle.org/distributions/|https://mirrors.cloud.tencent.com/gradle/|' "$WRAPPER_FILE"
+          sed -i 's/gradle-8\.[0-9]*-all.zip/gradle-8.14-all.zip/g' "$WRAPPER_FILE"
+          cat "$WRAPPER_FILE"
+          mkdir -p ~/.gradle
+          cat > ~/.gradle/init.gradle <<'EOF'
+          allprojects {
+            buildscript {
+              repositories {
+                maven { url 'https://maven.aliyun.com/repository/public' }
+                maven { url 'https://maven.aliyun.com/repository/google' }
+                maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+                mavenCentral()
+                google()
+                gradlePluginPortal()
+              }
+            }
+            repositories {
+              maven { url 'https://maven.aliyun.com/repository/public' }
+              maven { url 'https://maven.aliyun.com/repository/google' }
+              mavenCentral()
+              google()
+            }
+          }
+          EOF
+      - name: Build APK with Retry
+        run: |
+          cd "$PROJECT_DIR"
+          flutter pub get
+          for i in 1 2 3; do
+            echo "=== ATTEMPT $i ==="
+            flutter build apk --release && break || sleep 30
+          done
+      - a/build/app/outputs/flutter-apk/app-release.apk
