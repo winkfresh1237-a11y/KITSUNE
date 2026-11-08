@@ -1,64 +1,28 @@
 name: Build APK
+
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Unzip project
-        run: |
-          unzip -o 'KITSUNE V2.zip' -d extracted
-          FOUND=$(find extracted -maxdepth 3 -name "pubspec.yaml" | head -n 1)
-          PROJECT_DIR="${FOUND%/*}"
-          echo "Found project at $PROJECT_DIR"
-          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.47.9'
+          flutter-version: '3.24.3'
           channel: 'stable'
-      - uses: actions/setup-java@v4
+          cache: true
+      - run: flutter pub get
+      - run: flutter build apk --release
+      - name: Buat Release
+        uses: softprops/action-gh-release@v2
         with:
-          distribution: 'temurin'
-          java-version: '17'
-      - name: Fix Gradle Download + Maven Mirror
-        run: |
-          cd "$PROJECT_DIR"
-          WRAPPER_FILE=$(find . -name "gradle-wrapper.properties" | head -n 1)
-          sed -i 's|https://services.gradle.org/distributions/|https://mirrors.cloud.tencent.com/gradle/|' "$WRAPPER_FILE"
-          sed -i 's/gradle-8\.[0-9]*-all.zip/gradle-8.14-all.zip/g' "$WRAPPER_FILE"
-          cat "$WRAPPER_FILE"
-          mkdir -p ~/.gradle
-          cat > ~/.gradle/init.gradle <<'EOF'
-          allprojects {
-            buildscript {
-              repositories {
-                maven { url 'https://maven.aliyun.com/repository/public' }
-                maven { url 'https://maven.aliyun.com/repository/google' }
-                maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
-                mavenCentral()
-                google()
-                gradlePluginPortal()
-              }
-            }
-            repositories {
-              maven { url 'https://maven.aliyun.com/repository/public' }
-              maven { url 'https://maven.aliyun.com/repository/google' }
-              mavenCentral()
-              google()
-            }
-          }
-          EOF
-      - name: Build APK with Retry
-        run: |
-          cd "$PROJECT_DIR"
-          flutter pub get
-          for i in 1 2 3; do
-            echo "=== ATTEMPT $i ==="
-            flutter build apk --release && break || sleep 30
-          done
-      - uses: actions/upload-artifact@v4
-        with:
-          name: KITSUNE-release
-          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          tag_name: v1.0.${{ github.run_number }}
+          name: KITSUNE V2 - Build ${{ github.run_number }}
+          files: build/app/outputs/flutter-apk/app-release.apk
